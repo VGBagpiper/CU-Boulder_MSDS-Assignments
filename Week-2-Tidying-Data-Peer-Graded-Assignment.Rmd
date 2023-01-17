@@ -1,0 +1,206 @@
+---
+title: "Week-2-Tidying-Data-Peer-Graded-Assignment"
+author: "Vickie Gray"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE, error=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Tidy Data
+
+## Q1. The built in billboard dataset is not tidy. Describe why it is not tidy and then tidy the dataset.
+
+While the exercise asked for a different output, to me, the most important data is the ranking of tracks THIS WEEK. Rank per week should be a single column, with date descending as a second column, and perhaps a number of weeks on the chart variable calculated from the rest of the data. This way, as tracks drop off the chart, they do not take up space with NAs.
+
+What would the first few entries look like if it were tidy?
+
+A:
+
+| Artist      | Track         | Week       | Rank | Weeks_Charted |
+|-------------|---------------|------------|------|---------------|
+| Vickie Gray | Data Darling  | 2022-12-28 | 1    | 43            |
+| Jane Wall   | Pivot Party   | 2022-12-28 | 2    | 19            |
+| Arthur Dent | Don't Panic   | 2022-12-28 | 3    | 34            |
+| ...         |               |            |      |               |
+| Jane Wall   | Pivot Party   | 2022-12-21 | 1    | 18            |
+| Arthur Dent | Don't Panic   | 2022-12-21 | 2    | 33            |
+| ...         |               |            |      |               |
+
+: Billboard
+
+Billboard Tidied:
+
+```{r}
+billboard # The original dataset
+
+tidy_billboard <- billboard %>%
+  pivot_longer(
+    cols = starts_with("wk"), # gather the data currently in multiple wk* columns
+    names_to = "week", # into one column called week
+    names_prefix = "wk", # remove the prefix from the names to leave the week number
+    values_to = "rank", # create a rank column and put the values previously in wk* columns there.
+    values_drop_na = TRUE # drop rows with NA to tidy the dataset. 
+    # This is safe, as a rank of NA indicates the song was not on the chart at all.
+  )
+  
+tidy_billboard #The tidied dataset.  
+# Now we can add the calculated week column:
+
+tidy_billboard2 <- tidy_billboard %>%
+  mutate(
+    date = (date.entered) + 7 * (as.numeric(week) - 1)
+  ) # Mutate the table to add the calculated week
+tidy_billboard2
+```
+
+## Q2. Tidy the "fish_encounters" dataset of fish spotting by monitoring stations. Make the NA into 0 using the option "values_fill = list(seen = 0)"
+
+```{r}
+# The fish encounters dataset has multiple observations per variable (station) 
+# We can tidy the data by pivoting wider, showing each station as a variable 
+tidy_fish <- fish_encounters %>%
+  pivot_wider(
+    names_from = "station",  # the new columns will be stations recording the fish encounter
+    values_from = "seen", # each station will have an entry for the "seen" status of each fish
+    values_fill = list(seen = 0) # missing data in this case means the fish was not seen so we can fill those observations with 0.
+  )
+
+tidy_fish
+
+```
+
+## Q3. Import the flowers1 dataset. Tidy and pivot the data. Hint: use "read_csv2()" to read in the dataset
+
+I can't find the data dictionary for this dataset, but with a little hunting, found that research into apple and other fruit trees is concerned with the effect of the intensity of light on flowering time and plant quality. 
+
+I will assume, then, that the variables in this dataset - Time, Replication, Variable, and Value - are headings for studies into the flowering time (1, 2) of flowers (variable), and the associated light intensity (variable), in 12 replications of each observation.
+
+I have therefore turned each observation into a record of the flowers and intensity within each replication of the observation for each flowering time.
+
+I have read in the data using read_csv2, as this dataset uses semicolons as separators.
+```{r}
+flowers1 <- read_csv2("https://raw.githubusercontent.com/JaneWall/data_STAT412612/master/flowers1.csv")
+  
+flowers1
+
+tidy_flowers <- flowers1 %>%
+  pivot_wider(
+    names_from = "Variable",
+    values_from = "Value"
+      )
+
+tidy_flowers
+```
+
+
+## Q4. Import the flowers2 dataset. Tidy the dataset by turning the one column into 3 separate columns.
+
+I have read in the data using read_csv2, as this dataset uses semicolons as separators.
+
+```{r}
+flowers2 <- read_csv2("https://raw.githubusercontent.com/JaneWall/data_STAT412612/master/flowers2.csv")
+
+flowers2 # The original dataset
+
+tidy_flowers_2 <- flowers2 %>% #a new object gets the resulting dataset
+  separate(
+    "Flowers/Intensity", # separate the original variable name
+    into = c("flowers", "intensity"), # into two new variables
+    sep = "/", # at the separator character
+    convert = TRUE) # and convert the resulting data types
+
+tidy_flowers_2 # The separated dataset
+```
+## Q5. In the following dataset, turn the implicit missing values to explicit
+
+```{r}
+output <- tibble(
+treatment = c("a", "b", "a", "c", "b"), 
+gender = factor(c("M", "F", "F", "M", "M"), 
+                levels = c("M", "F", "O")), 
+return = c(1.5, 0.75, 0.5, 1.8, NA) 
+) 
+
+output
+```
+```{r}
+
+tidy_output <- output %>%
+  group_by(treatment) %>% #Within each treatment, show all possible combinations
+  complete(
+    gender, 
+    explicit = TRUE)
+
+tidy_output
+
+```
+
+
+
+## Q6.  
+a. Import the weather dataset as weather.  
+b. Use "pivot_longer()" to put the days all in one column, then 
+c. use "pivot_wider" to separate tmax and tmin into separate columns. 
+d. Print the summary of the final resulting dataset
+
+```{r}
+weather <- read_csv("https://raw.githubusercontent.com/JaneWall/data_STAT412612/master/weather.csv") # a.
+
+weather
+
+tidy_weather <- weather %>%
+  pivot_longer( # b.
+    cols = d1:d31, 
+    names_to = c("day"),  
+    names_pattern = "d(.*)", 
+    values_to = "temp",
+    values_drop_na = TRUE # there are a lot of cells with no data, so this made the dataset much smaller
+    )
+
+tidy_weather
+```
+
+```{r}
+tidy_weather2 <- tidy_weather %>%
+  pivot_wider( # c.
+    names_from = "element", # We're splitting the max and min temperatures in element into two columns
+    values_from = "temp" 
+  )
+
+tidy_weather2
+```
+
+```{r}
+# A summary of temperature data would make sense if showed average maximum and minimum temperatures by month, so we group by month, and then summarize using the mean function.
+
+tidy_weather2_sum <- tidy_weather2 %>%
+  group_by(month) %>%
+  summarize(m_max = mean(tmax), m_min = mean(tmin))
+
+tidy_weather2_sum
+```
+
+
+## Q7. Load the built in "anscombe" data frame and use "pivot_longer()" to separate all the x and y columns and categorize them into 4 sets
+
+```{r}
+as_tibble(anscombe) # The original data set
+
+tidy_anscombe <- anscombe %>% 
+  pivot_longer(
+    everything(), #All columns
+    names_to = c(".value", "set"), # `".value"` indicates that the corresponding component of the column name defines the name of the output column containing the cell values, overriding `values_to` entirely.
+# See https://rdrr.io/cran/tidyr/src/R/pivot-long.R for more explanation 
+    names_pattern = "(.)(.)" # divide the column names into two parts with no divider
+  ) %>%
+  arrange(set) # Arrange the result by set
+
+tidy_anscombe
+```
+
+```
+

@@ -1,0 +1,193 @@
+---
+title: "Relational Data Assignment"
+author: "Vickie Gray"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# install.packages('babynames') # comment out if necessary
+# install.packages('nasaweather') # comment out if necessary
+# install.packages("Lahman", repos = "http://R-Forge.R-project.org") # The current Lahman dataset if required
+
+```
+
+---
+title: "Relational Data Assignment"
+author: 'Vickie Gray'
+---
+##### Assignment Instructions
+
+Complete all questions below. After completing the assignment, knit your document, and download both your .Rmd and knitted output. Upload your files for peer review. 
+
+For each response, include comments detailing your response and what each line does. Ensure you test your functions with sufficient test cases to identify and correct any potential bugs.
+
+##### Required Libraries
+
+```{r libraries}
+library(tidyverse)
+library(nycflights13)
+library(Lahman)
+library(babynames)
+library(nasaweather)
+library(maps)
+```
+
+##### Question 1.
+
+Identify the primary keys in the following datasets. Be sure to show that you have the primary key by showing there are no duplicate entries.
+
+Lahman::Batting
+babynames::babynames
+nasaweather::atmos
+
+
+```{r question-1-response}
+
+# The primary key for Lahman::Batting is a combination of 
+# playerID, stint, yearID, and teamID. 
+# A filter on the count confirms 0 rows
+
+# Lahman::Batting # The full dataset for reference
+
+Lahman::Batting %>%
+  count(playerID, stint, yearID, teamID) %>%
+  filter(n > 1) # filter to find duplicates; result confirms 0 rows
+```
+
+
+```{r}
+
+# The primary key for babynames::babynames is a combination of 
+# year, sex, name. 
+# A filter on the count confirms 0 rows 
+
+# babynames::babynames # The full dataset
+
+babynames::babynames %>%
+  count(year, sex, name) %>%
+  filter(n > 1)
+```
+
+```{r}
+# The primary key for nasaweather::atmos is a combination of 
+# lat, long, year, month. 
+# A filter on the count confirms 0 rows 
+
+# nasaweather::atmos # The full dataset
+
+nasaweather::atmos %>%
+  count(lat, long, year, month) %>%
+  filter(n > 1)
+```
+
+##### Question 2.
+
+What is the relationship between the "Batting", "Master", and "Salaries" tables in the "Lahman" package? What are the keys for each dataset and how do they relate to each other?
+```{r question-2-response}
+
+# According to Help on "Lahman", each player is assigned a unique code (playerID). All of the information in different tables relating to that player is tagged with his playerID. The playerIDs are linked to names and birthdates in the Master (renamed "People" in 2021) table. Similar links exist among other tables via analogous *ID variables.
+
+# In both Batting and Salaries, the variables "playerID", "yearID", "teamID", "lgID" combine to form a key. The Salaries table includes these variables and only one other: salary.
+
+# When joined on this key, the combined table includes consistent salary information for players after 1985. Before 1985, salary information is NA. 
+# Batting # Full dataset
+# Salaries # Full dataset
+# Master # Full dataset
+```
+
+```{r}
+
+Bat_Sal <- Batting %>%
+  left_join(Salaries, 
+            by = c("playerID", "yearID", "teamID", "lgID")) %>%
+  select("playerID", "yearID", "teamID", "lgID", "salary")
+
+head(Bat_Sal) # The earliest records are dated 1871 
+tail(Bat_Sal) # The most recent records are from 2016 
+```
+
+```{r}
+Player_Sal <- Master %>% 
+  full_join(Bat_Sal, by = "playerID") %>%
+  select("playerID", "nameLast", "nameGiven", "yearID", "teamID", "lgID","salary") %>%
+  arrange("nameLast")
+
+head(Player_Sal)
+tail(Player_Sal)
+```
+
+
+##### Question 3.
+
+Load the "nycflights13" library. Use an appropriate join to add a column containing the airline name to the "flights" dataset present in the library. Be sure to put the carrier code and name in the first two columns of the result so we can see them. Save the result as "flights2".
+
+```{r question-3-response}
+
+flights2 <- flights %>%
+  left_join(airlines, by = "carrier") %>%
+  select(carrier, name, everything())
+
+head(flights2)
+tail(flights2)
+```
+
+##### Question 4.
+
+Use an appropriate join to add the airport name to the "flights2" dataset you got above. The codes and names of the airports are in the "airports" dataset of the "nycflights13" package. Put the carrier and carrier name first followed by the destination and destination name, then everything else.
+
+```{r question-4-response}
+airports2 <- airports %>% 
+  select(everything()) %>%
+  rename("airport_name" = "name") # Rename the airports variable "name" so it doesn't conflict with airlines "name" in the next step. We could have also renamed the airlines "name" to airlines_name in the previous step.
+
+flights2 <- flights2 %>%
+  left_join(airports2, by = c("dest" = "faa")) %>%
+  select(carrier, name, airport_name, everything())
+
+head(flights2)
+tail(flights2)
+```
+
+##### Question 5.
+
+The "nycflights13" library and the code to create spatial map is provided for you. Now compute the average delay by destination, then join on the airports dataframe so you can show the spatial distribution of delays.
+
+* Use the size or colour of the points to display the average delay for each airport.
+* Add the location of the origin and destination (i.e. the lat and lon) to flights.
+* Compute the average delay by destination.
+
+Use the textbook for reference.
+
+```{r question-5-response}
+# First, compute the average delay, grouped by dest
+avg_delay <- # Create an object to hold the new dataset
+  flights %>% # Pipe flights
+  group_by(dest) %>% # group by the destination variable
+  summarise(delay = mean(arr_delay, na.rm = TRUE)) %>%
+  # arrival delay NA's are cancelled flights, so we remove those
+  # calculate the mean arrival delay for each destination, and save that information to the object delay then pipe the result
+  inner_join (airports, by = c(dest = "faa")) # Join the avg_delay dataset to the airports dataset on dest (from avg_delay) = faa(from airports)
+# The airports dataset gives us the lat and lon data required by the question to create the ggplot map
+avg_delay # The combined table
+
+avg_delay %>% # Now we can pipe the combined table to ggplot 
+  ggplot(aes(lon, lat, colour = delay)) + # the colour of the airports on the map is going to reflect the average delay at that location 
+    borders("state") +
+    geom_point() +
+    coord_quickmap()
+
+```
+
+
+##### Question 6.
+
+Use a set operation function to find which airport codes from flights are not in the airports dataset.
+
+```{r question-6-response}
+# Setdiff will return the all values from the first set that are not in the second set; There are four airport codes in flights that are not in the airports dataset
+
+as_tibble(setdiff(flights$dest, airports$faa))
+```
+
